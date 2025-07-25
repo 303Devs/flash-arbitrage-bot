@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DEX Configuration",
+  "type": "object",
+  "patternProperties": {
+    "^[0-9]+$": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "router": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "factory": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "quoter": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "fees": {
+              "type": "array",
+              "items": { "type": "number", "minimum": 0 }
+            },
+            "gasEstimate": { "type": "number", "minimum": 50000 },
+            "type": { "enum": ["uniswap-v2", "uniswap-v3", "balancer", "curve"] }
+          },
+          "required": ["name", "router", "fees", "gasEstimate", "type"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+# Prometheus Configuration for Flash Arbitrage Bot - Docker Version
+# Hard-coded ports for Docker containers
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  
+  external_labels:
+    monitor: 'flash-arbitrage-bot'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - 'localhost:9093'
+      timeout: 10s
+      api_version: v2
+
+# Load alert rules
+rule_files:
+  - 'alert_rules.yml'
+
+# Scrape configuration optimized for trading bot
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    honor_labels: true
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Flash Arbitrage Bot metrics (high frequency for trading data)
+  - job_name: 'flash-arbitrage-bot'
+    scrape_interval: 5s
+    scrape_timeout: 4s
+    metrics_path: '/metrics'
+    honor_labels: true
+    static_configs:
+      - targets: ['localhost:3001']
+        labels:
+          service: 'flash-arbitrage-bot'
+          environment: 'production'
+    metric_relabel_configs:
+      # Drop high cardinality metrics if needed
+      - source_labels: [__name__]
+        regex: 'go_.*'
+        action: drop
+      - source_labels: [__name__]
+        regex: 'promhttp_.*'
+        action: drop
+
+  # Redis health metrics (via redis_exporter)
+  - job_name: 'redis'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+    honor_labels: true
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          component: 'cache'
+
+  # PostgreSQL health metrics (via postgres_exporter)
+  - job_name: 'postgres'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+    honor_labels: true
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          component: 'database'

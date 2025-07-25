@@ -1,0 +1,45 @@
+# Grafana Dashboard Provisioning Configuration
+# Production-ready dashboard provisioning following Critical Principles
+# ALL VALUES ENVIRONMENT-DRIVEN
+
+apiVersion: 1
+
+providers:
+  # Trading-focused dashboards
+  - name: flash-arbitrage-trading
+    orgId: 1
+    folder: Trading
+    folderUid: flash_arbitrage_trading
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 300
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards/trading
+      foldersFromFilesStructure: false
+
+  # System and infrastructure dashboards  
+  - name: flash-arbitrage-infrastructure
+    orgId: 1
+    folder: Infrastructure
+    folderUid: flash_arbitrage_infrastructure
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 300
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards/infrastructure
+      foldersFromFilesStructure: false
+
+  # Chain-specific analysis dashboards
+  - name: flash-arbitrage-chains
+    orgId: 1
+    folder: Chain Analysis
+    folderUid: flash_arbitrage_chains
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 300
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards/chains
+      foldersFromFilesStructure: false

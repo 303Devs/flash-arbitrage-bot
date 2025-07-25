@@ -1,3 +1,11 @@
 .env
 node_modules
 .DS_Store
+coverage
+logs
+dist
+*.log
+.pnpm-debug.log*
+.vscode
+*.tmp
+*.DS_Store

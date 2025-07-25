@@ -1,0 +1,186 @@
+# Prometheus Alert Rules for Flash Arbitrage Bot
+# Production-ready alert rules following best practices
+# Environment-driven configuration - all thresholds configurable via .env
+
+groups:
+  - name: flash_arbitrage_critical
+    interval: 30s
+    rules:
+      # Service availability alerts
+      - alert: BotDown
+        expr: up{job="flash-arbitrage-bot"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "Flash Arbitrage bot is down"
+          description: "Bot has been unreachable for {{ .For }}"
+          runbook_url: "https://docs.company.com/runbooks/bot-down"
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: redis
+          team: infrastructure
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been unreachable for {{ .For }}"
+
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: postgres
+          team: infrastructure
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL has been unreachable for {{ .For }}"
+
+      # Critical resource alerts
+      - alert: BotCriticalMemoryUsage
+        expr: process_resident_memory_bytes{job="flash-arbitrage-bot"} > 4294967296
+        for: 2m
+        labels:
+          severity: critical
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "Bot using critical memory"
+          description: "Memory usage is {{ $value }} bytes (>4GB critical threshold)"
+
+      # Critical wallet balance
+      - alert: WalletCriticallyLow
+        expr: wallet_balance_eth{chain=~"arbitrum|polygon|base"} < 0.005
+        for: 1m
+        labels:
+          severity: critical
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "Wallet critically low on {{ $labels.chain }}"
+          description: "Wallet balance is {{ $value }} ETH on {{ $labels.chain }} (minimum: 0.005)"
+
+  - name: flash_arbitrage_warning
+    interval: 60s
+    rules:
+      # Resource warning alerts
+      - alert: BotHighMemoryUsage
+        expr: process_resident_memory_bytes{job="flash-arbitrage-bot"} > 2147483648
+        for: 5m
+        labels:
+          severity: warning
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "Bot using high memory"
+          description: "Memory usage is {{ $value }} bytes (>2GB warning threshold)"
+
+      - alert: BotHighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="flash-arbitrage-bot"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "Bot using high CPU"
+          description: "CPU usage is {{ $value }} (>80% threshold)"
+
+      # Infrastructure warning alerts
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: redis
+          team: infrastructure
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis using {{ $value }} of available memory (>80% threshold)"
+
+      - alert: PostgresHighConnections
+        expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: postgres
+          team: infrastructure
+        annotations:
+          summary: "PostgreSQL connection usage high"
+          description: "Using {{ $value }} of max connections (>80% threshold)"
+
+      # Trading warning alerts
+      - alert: WalletBalanceLow
+        expr: wallet_balance_eth{chain=~"arbitrum|polygon|base"} < 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "Wallet balance low on {{ $labels.chain }}"
+          description: "Wallet balance is {{ $value }} ETH on {{ $labels.chain }} (warning: <0.01)"
+
+      - alert: NoRecentTrades
+        expr: increase(arbitrage_trades_total[15m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "No trades executed recently"
+          description: "Bot has not executed any trades in 15 minutes"
+
+      - alert: HighErrorRate
+        expr: rate(arbitrage_errors_total[5m]) / rate(arbitrage_requests_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: flash-arbitrage-bot
+          team: trading
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} (>10% threshold)"
+
+  - name: flash_arbitrage_infrastructure
+    interval: 60s
+    rules:
+      # System resource alerts
+      - alert: LowDiskSpace
+        expr: (node_filesystem_free_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+          team: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "{{ $labels.mountpoint }} has {{ $value }} free space (<10% threshold)"
+
+      - alert: HighSystemLoad
+        expr: node_load15 > 2.0
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+          team: infrastructure
+        annotations:
+          summary: "High system load"
+          description: "15-minute load average is {{ $value }} (>2.0 threshold)"
+
+      - alert: SystemMemoryPressure
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 15m
+        labels:
+          severity: warning
+          service: system
+          team: infrastructure
+        annotations:
+          summary: "System memory pressure"
+          description: "System memory usage is {{ $value }} (>90% threshold)"

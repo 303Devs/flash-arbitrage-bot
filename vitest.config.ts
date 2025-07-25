@@ -1,59 +1,41 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config'
-import { resolve } from 'path'
+import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
   test: {
     // Test environment
     environment: 'node',
-    
+
     // Test file patterns
-    include: [
-      'backend/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'
-    ],
-    exclude: [
-      'node_modules',
-      'dist',
-      'contracts'
-    ],
-    
+    include: ['tests/**/*.{test,spec}.{js,ts}'],
+    exclude: ['node_modules', 'dist'],
+
     // Global test settings
     globals: true,
-    clearMocks: true,
-    restoreMocks: true,
-    
-    // Coverage settings
+
+    // Basic coverage
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'dist/',
-        'contracts/',
-        '**/*.d.ts',
-        '**/*.config.{js,ts}',
-        '**/types.ts'
-      ]
+      reporter: ['text', 'html'],
+      exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.config.{js,ts}'],
     },
-    
-    // Timeouts
-    testTimeout: 10000,
-    hookTimeout: 10000,
-    
-    // Watch mode
-    watchExclude: [
-      'node_modules',
-      'dist',
-      'contracts'
-    ]
+
+    // Timeouts for blockchain operations
+    testTimeout: 30000,
   },
-  
+
   // Path resolution to match tsconfig.json
   resolve: {
     alias: {
       '@': resolve(__dirname, './backend'),
       '@config': resolve(__dirname, './backend/config'),
-      '@utils': resolve(__dirname, './backend/src/utils')
-    }
-  }
-})
+      '@utils': resolve(__dirname, './backend/src/utils'),
+      '@arbitrage': resolve(__dirname, './backend/src/arbitrage'),
+      '@data': resolve(__dirname, './backend/src/data'),
+      '@execution': resolve(__dirname, './backend/src/execution'),
+      '@flashloans': resolve(__dirname, './backend/src/flashloans'),
+      '@storage': resolve(__dirname, './backend/src/storage'),
+    },
+  },
+});

@@ -1,0 +1,20 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["backend/config/chains.json"],
+      "url": "./backend/config/schemas/chains.schema.json"
+    },
+    {
+      "fileMatch": ["backend/config/tokens.json"],
+      "url": "./backend/config/schemas/tokens.schema.json"
+    },
+    {
+      "fileMatch": ["backend/config/dexes.json"],
+      "url": "./backend/config/schemas/dexes.schema.json"
+    },
+    {
+      "fileMatch": ["backend/config/flashLoanProviders.json"],
+      "url": "./backend/config/schemas/flashLoanProviders.schema.json"
+    }
+  ]
+}

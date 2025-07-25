@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "lib": ["es2022"],
+
+    "module": "esnext",
+    "moduleResolution": "node",
+    "rootDir": "./backend",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["backend/*"],
+      "@config/*": ["backend/config/*"],
+      "@utils/*": ["backend/src/utils/*"],
+      "@arbitrage/*": ["backend/src/arbitrage/*"],
+      "@data/*": ["backend/src/data/*"],
+      "@execution/*": ["backend/src/execution/*"],
+      "@flashloans/*": ["backend/src/flashloans/*"],
+      "@storage/*": ["backend/src/storage/*"],
+      "@contracts/*": ["contracts/*"],
+      "@typechain/*": ["contracts/typechain-types/*"]
+    },
+    "resolveJsonModule": true,
+
+    "outDir": "./dist/backend",
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "removeComments": false,
+    "noEmitOnError": true,
+    "composite": true,
+    "incremental": true,
+
+    "allowJs": false,
+
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+
+    "skipLibCheck": true
+  },
+
+  "include": ["backend/**/*"],
+  "exclude": ["node_modules", "dist", "contracts/**/*"]
+}
