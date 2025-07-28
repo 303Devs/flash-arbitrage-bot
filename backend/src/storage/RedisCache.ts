@@ -61,7 +61,6 @@ export class RedisCache {
       password: this.config.password,
       // Connection settings from config
       maxRetriesPerRequest: this.config.maxRetries,
-      retryDelayOnFailover: this.config.retryDelay,
       enableReadyCheck: true,
       lazyConnect: true,
       keepAlive: this.config.keepAlive,
@@ -367,15 +366,18 @@ export class RedisCache {
       keyspaceLines.forEach(line => {
         const match = line.match(/keys=(\d+)/);
         if (match) {
-          totalKeys += parseInt(match[1]);
+          const matchedValue = match[1];
+          if (matchedValue) {
+            totalKeys += parseInt(matchedValue);
+          }
         }
       });
       
       return {
         totalKeys,
-        memoryUsage: memoryMatch ? memoryMatch[1] : 'unknown',
-        uptime: uptimeMatch ? parseInt(uptimeMatch[1]) : 0,
-        connectedClients: clientsMatch ? parseInt(clientsMatch[1]) : 0,
+        memoryUsage: memoryMatch?.[1] || 'unknown',
+        uptime: uptimeMatch?.[1] ? parseInt(uptimeMatch[1]) : 0,
+        connectedClients: clientsMatch?.[1] ? parseInt(clientsMatch[1]) : 0,
       };
     } catch (error) {
       logger.error('Failed to get Redis stats', { error });
@@ -391,6 +393,175 @@ export class RedisCache {
     } catch (error) {
       logger.error('Redis ping failed', { error });
       return false;
+    }
+  }
+
+  // ================================
+  // PHASE 2 ENHANCEMENTS - Health Monitoring Support
+  // ================================
+
+  /**
+   * Cache provider health metrics with structured keys
+   */
+  async setProviderHealthMetrics(chainId: number, providerName: string, metrics: {
+    isHealthy: boolean;
+    consecutiveFailures: number;
+    responseTime: number;
+    successRate: number;
+    healthScore: number;
+    degradationTrend: string;
+    timestamp: number;
+  }): Promise<void> {
+    try {
+      await this.redis.select(this.config.databases.general);
+      const key = `provider_health:${chainId}:${providerName}`;
+      const serialized = JSON.stringify(metrics);
+      await this.redis.setex(key, 600, serialized); // 10 minute TTL
+      
+      logger.debug('Provider health metrics cached', { 
+        chainId, 
+        providerName, 
+        healthScore: metrics.healthScore,
+        isHealthy: metrics.isHealthy
+      });
+    } catch (error) {
+      logger.error('Failed to cache provider health metrics', { 
+        chainId, 
+        providerName, 
+        error 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get cached provider health metrics
+   */
+  async getProviderHealthMetrics(chainId: number, providerName: string): Promise<any | null> {
+    try {
+      await this.redis.select(this.config.databases.general);
+      const key = `provider_health:${chainId}:${providerName}`;
+      const data = await this.redis.get(key);
+      
+      if (!data) {
+        return null;
+      }
+      
+      const parsed = JSON.parse(data);
+      logger.debug('Provider health metrics retrieved', { 
+        chainId, 
+        providerName,
+        healthScore: parsed.healthScore
+      });
+      return parsed;
+    } catch (error) {
+      logger.error('Failed to retrieve provider health metrics', { 
+        chainId, 
+        providerName, 
+        error 
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Cache circuit breaker state
+   */
+  async setCircuitBreakerState(chainId: number, providerName: string, state: {
+    state: 'closed' | 'half_open' | 'open';
+    failureCount: number;
+    openedAt: number;
+    nextRetryTime: number;
+  }): Promise<void> {
+    try {
+      await this.redis.select(this.config.databases.general);
+      const key = `circuit_breaker:${chainId}:${providerName}`;
+      const serialized = JSON.stringify(state);
+      await this.redis.setex(key, 1800, serialized); // 30 minute TTL
+      
+      logger.debug('Circuit breaker state cached', { 
+        chainId, 
+        providerName, 
+        state: state.state,
+        failureCount: state.failureCount
+      });
+    } catch (error) {
+      logger.error('Failed to cache circuit breaker state', { 
+        chainId, 
+        providerName, 
+        error 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Increment request counter for a provider
+   */
+  async incrementProviderRequestCount(chainId: number, providerName: string, success: boolean): Promise<void> {
+    try {
+      await this.redis.select(this.config.databases.general);
+      const totalKey = `provider_requests:${chainId}:${providerName}:total`;
+      const successKey = `provider_requests:${chainId}:${providerName}:success`;
+      
+      // Increment counters with expiration
+      await this.redis.incr(totalKey);
+      await this.redis.expire(totalKey, 3600); // 1 hour
+      
+      if (success) {
+        await this.redis.incr(successKey);
+        await this.redis.expire(successKey, 3600); // 1 hour
+      }
+      
+    } catch (error) {
+      logger.error('Failed to increment provider request count', { 
+        chainId, 
+        providerName, 
+        success, 
+        error 
+      });
+      // Don't throw - request counting is not critical
+    }
+  }
+
+  /**
+   * Get provider request statistics
+   */
+  async getProviderRequestStats(chainId: number, providerName: string): Promise<{
+    totalRequests: number;
+    successfulRequests: number;
+    successRate: number;
+  }> {
+    try {
+      await this.redis.select(this.config.databases.general);
+      const totalKey = `provider_requests:${chainId}:${providerName}:total`;
+      const successKey = `provider_requests:${chainId}:${providerName}:success`;
+      
+      const [totalStr, successStr] = await Promise.all([
+        this.redis.get(totalKey),
+        this.redis.get(successKey)
+      ]);
+      
+      const totalRequests = totalStr ? parseInt(totalStr) : 0;
+      const successfulRequests = successStr ? parseInt(successStr) : 0;
+      const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
+      
+      return {
+        totalRequests,
+        successfulRequests,
+        successRate
+      };
+    } catch (error) {
+      logger.error('Failed to get provider request stats', { 
+        chainId, 
+        providerName, 
+        error 
+      });
+      return {
+        totalRequests: 0,
+        successfulRequests: 0,
+        successRate: 0
+      };
     }
   }
 }

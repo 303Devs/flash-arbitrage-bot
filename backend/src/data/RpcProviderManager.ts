@@ -4,6 +4,13 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { logger } from '../utils/Logger.js';
 import { redisCache } from '../storage/RedisCache.js';
+// Remove circular dependencies - will be injected during initialization
+// import { connectionHealthMonitor } from './ConnectionHealthMonitor.js';
+// import { providerFailoverLogic } from './ProviderFailoverLogic.js';
+
+// Import types only to avoid circular dependencies
+import type { ConnectionHealthMonitor } from './ConnectionHealthMonitor.js';
+import type { ProviderFailoverLogic } from './ProviderFailoverLogic.js';
 
 // Type definitions for provider configuration
 export interface RpcProviderConfig {
@@ -94,9 +101,29 @@ export class RpcProviderManager {
 
   // Dynamic chain mappings - NO HARDCODED VALUES
   private chainMappings: Map<number, Chain> = new Map();
+  
+  // Phase 2 enhancements
+  private isAdvancedMonitoringEnabled: boolean = false;
+  private healthMonitor?: ConnectionHealthMonitor;
+  private failoverLogic?: ProviderFailoverLogic;
 
   constructor() {
+    // Validate critical environment variables early
+    this.validateEnvironmentVariables();
     this.account = this.setupAccount();
+  }
+
+  /**
+   * Validate critical environment variables
+   */
+  private validateEnvironmentVariables(): void {
+    const requiredEnvVars = ['PRIVATE_KEY'];
+    
+    for (const envVar of requiredEnvVars) {
+      if (!process.env[envVar]) {
+        throw new Error(`${envVar} environment variable is required`);
+      }
+    }
   }
 
   /**
@@ -119,6 +146,12 @@ export class RpcProviderManager {
       // Perform initial health checks
       await this.performInitialHealthChecks();
       
+      // Create health monitoring database tables
+      await this.createHealthMonitoringTables();
+      
+      // Initialize Phase 2 components
+      await this.initializeAdvancedMonitoring();
+      
       // Start continuous health monitoring
       this.startHealthMonitoring();
       
@@ -131,6 +164,128 @@ export class RpcProviderManager {
       logger.error('Failed to initialize RPC Provider Manager', error instanceof Error ? error : new Error(String(error)));
       throw new Error(`RPC Provider Manager initialization failed: ${error}`);
     }
+  }
+
+  /**
+   * Create health monitoring database tables
+   */
+  private async createHealthMonitoringTables(): Promise<void> {
+    try {
+      logger.startup('Creating health monitoring database tables...');
+      
+      // Import PostgreSQL repository dynamically
+      const { postgresRepository } = await import('../storage/PostgresRepository.js');
+      
+      // Create health monitoring tables
+      await postgresRepository.createHealthMonitoringTables();
+      
+      logger.startup('Health monitoring database tables created successfully');
+    } catch (error) {
+      logger.error('Failed to create health monitoring tables', error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - this is not critical for basic functionality
+      logger.warn('Continuing without health monitoring tables');
+    }
+  }
+
+  /**
+   * Initialize advanced monitoring components (Phase 2)
+   */
+  private async initializeAdvancedMonitoring(): Promise<void> {
+    try {
+      logger.startup('Initializing advanced monitoring components...');
+      
+      // Prepare provider configurations for advanced components
+      const providerConfigs: Array<{
+        name: string;
+        chainId: number;
+        priority: number;
+      }> = [];
+      
+      for (const [chainId, providers] of this.providers) {
+        for (const provider of providers) {
+          providerConfigs.push({
+            name: provider.name,
+            chainId: chainId,
+            priority: provider.priority
+          });
+        }
+      }
+      
+      // Dynamically import to avoid circular dependencies
+      const { connectionHealthMonitor } = await import('./ConnectionHealthMonitor.js');
+      const { providerFailoverLogic } = await import('./ProviderFailoverLogic.js');
+      
+      // Store references for later use
+      this.healthMonitor = connectionHealthMonitor;
+      this.failoverLogic = providerFailoverLogic;
+      
+      // Initialize Connection Health Monitor
+      await connectionHealthMonitor.initialize(providerConfigs);
+      logger.startup('Connection Health Monitor initialized');
+      
+      // Initialize Provider Failover Logic
+      await providerFailoverLogic.initialize(providerConfigs);
+      logger.startup('Provider Failover Logic initialized');
+      
+      // Set up event listeners for integration
+      this.setupAdvancedMonitoringListeners();
+      
+      this.isAdvancedMonitoringEnabled = true;
+      logger.startup('Advanced monitoring components initialized successfully');
+      
+    } catch (error) {
+      logger.error('Failed to initialize advanced monitoring components', error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - basic functionality should still work
+      logger.warn('Continuing with basic health monitoring only');
+    }
+  }
+  
+  /**
+   * Set up event listeners for advanced monitoring integration
+   */
+  private setupAdvancedMonitoringListeners(): void {
+    if (!this.failoverLogic) {
+      logger.warn('Failover logic not available for event listeners');
+      return;
+    }
+    
+    // Listen for failover events
+    this.failoverLogic.on('providerSwitched', (event) => {
+      logger.info('Failover logic triggered provider switch', {
+        chainId: event.chainId,
+        fromProvider: event.fromProvider,
+        toProvider: event.toProvider,
+        reason: event.reason,
+        switchLatency: event.switchLatency
+      });
+    });
+    
+    // Listen for circuit breaker events
+    this.failoverLogic.on('circuitBreakerOpened', (event) => {
+      logger.warn('Circuit breaker opened for provider', {
+        chainId: event.chainId,
+        provider: event.provider,
+        failureCount: event.failureCount
+      });
+    });
+    
+    this.failoverLogic.on('circuitBreakerClosed', (event) => {
+      logger.info('Circuit breaker closed - provider recovered', {
+        chainId: event.chainId,
+        provider: event.provider,
+        recoveryDuration: event.recoveryDuration
+      });
+    });
+    
+    // Listen for operations alerts
+    this.failoverLogic.on('operationsAlert', (event) => {
+      logger.error('OPERATIONS ALERT from failover logic', {
+        chainId: event.chainId,
+        severity: event.severity,
+        message: event.message,
+        providerStates: event.providerStates
+      });
+    });
   }
 
   /**
@@ -593,7 +748,7 @@ export class RpcProviderManager {
   }
 
   /**
-   * Get the best HTTP public client for a chain - FIXED undefined handling
+   * Get the best HTTP public client for a chain - Enhanced with advanced monitoring
    */
   getHttpProvider(chainId: number): PublicClient {
     this.ensureInitialized();
@@ -601,6 +756,11 @@ export class RpcProviderManager {
     const currentProvider = this.currentProviders.get(chainId);
     if (!currentProvider) {
       throw new Error(`No provider available for chain ${chainId}`);
+    }
+    
+    // Track request start for load balancing
+    if (this.isAdvancedMonitoringEnabled && this.failoverLogic) {
+      this.failoverLogic.requestStarted(chainId, currentProvider.name);
     }
     
     if (!currentProvider.isHealthy) {
@@ -614,7 +774,7 @@ export class RpcProviderManager {
   }
 
   /**
-   * Get the best WebSocket provider for a chain - FIXED undefined handling
+   * Get the best WebSocket provider for a chain - Enhanced with advanced monitoring
    */
   getWebSocketProvider(chainId: number): PublicClient {
     this.ensureInitialized();
@@ -622,6 +782,11 @@ export class RpcProviderManager {
     const currentProvider = this.currentProviders.get(chainId);
     if (!currentProvider) {
       throw new Error(`No WebSocket provider available for chain ${chainId}`);
+    }
+    
+    // Track request start for load balancing
+    if (this.isAdvancedMonitoringEnabled && this.failoverLogic) {
+      this.failoverLogic.requestStarted(chainId, currentProvider.name);
     }
     
     if (!currentProvider.isHealthy) {
@@ -635,7 +800,7 @@ export class RpcProviderManager {
   }
 
   /**
-   * Get wallet client for transactions - FIXED undefined handling
+   * Get wallet client for transactions - Enhanced with advanced monitoring
    */
   getWalletClient(chainId: number): WalletClient {
     this.ensureInitialized();
@@ -643,6 +808,11 @@ export class RpcProviderManager {
     const currentProvider = this.currentProviders.get(chainId);
     if (!currentProvider) {
       throw new Error(`No wallet client available for chain ${chainId}`);
+    }
+    
+    // Track request start for load balancing
+    if (this.isAdvancedMonitoringEnabled && this.failoverLogic) {
+      this.failoverLogic.requestStarted(chainId, currentProvider.name);
     }
     
     if (!currentProvider.isHealthy) {
@@ -656,7 +826,7 @@ export class RpcProviderManager {
   }
 
   /**
-   * Force switch to next provider for a chain - FIXED undefined handling
+   * Force switch to next provider for a chain - Enhanced with intelligent selection
    */
   async switchProvider(chainId: number, reason: string): Promise<boolean> {
     this.ensureInitialized();
@@ -675,11 +845,91 @@ export class RpcProviderManager {
     currentProvider.isHealthy = false;
     currentProvider.consecutiveFailures++;
     
-    return await this.switchToHealthyProvider(chainId, reason);
+    // Use intelligent provider selection if advanced monitoring is enabled
+    if (this.isAdvancedMonitoringEnabled) {
+      return await this.switchToIntelligentProvider(chainId, reason);
+    } else {
+      return await this.switchToHealthyProvider(chainId, reason);
+    }
+  }
+  
+  /**
+   * Switch to provider using intelligent selection from failover logic
+   */
+  private async switchToIntelligentProvider(chainId: number, reason: string): Promise<boolean> {
+    try {
+      // Get chain provider states from failover logic
+      if (!this.failoverLogic) {
+        logger.warn('Failover logic not available for intelligent switching', { chainId });
+        return await this.switchToHealthyProvider(chainId, reason);
+      }
+      
+      const chainStates = this.failoverLogic.getChainProviderStates(chainId);
+      
+      if (chainStates.length === 0) {
+        logger.warn('No provider states available for intelligent switching', { chainId });
+        return await this.switchToHealthyProvider(chainId, reason);
+      }
+      
+      // Find best provider based on failover logic scoring
+      const availableStates = chainStates.filter(state => 
+        state.status !== 'failed' && 
+        state.status !== 'circuit_open' &&
+        state.circuitBreaker.state !== 'open'
+      );
+      
+      if (availableStates.length === 0) {
+        logger.warn('No available providers found by intelligent selection', { chainId });
+        return await this.switchToHealthyProvider(chainId, reason);
+      }
+      
+      // Sort by load score (lower = better)
+      availableStates.sort((a, b) => a.loadMetrics.loadScore - b.loadMetrics.loadScore);
+      const bestState = availableStates[0];
+      
+      // Find the corresponding provider instance
+      const providers = this.providers.get(chainId);
+      if (!providers) {
+        return false;
+      }
+      
+      const bestProvider = providers.find(p => p.name === bestState?.name);
+      if (!bestProvider) {
+        logger.warn('Best provider not found in provider instances', {
+          chainId,
+          bestProviderName: bestState?.name || 'unknown'
+        });
+        return await this.switchToHealthyProvider(chainId, reason);
+      }
+      
+      // Perform the switch
+      const currentProvider = this.currentProviders.get(chainId);
+      this.currentProviders.set(chainId, bestProvider);
+      
+      logger.info('Intelligent provider switch completed', {
+        chainId,
+        oldProvider: currentProvider?.name || 'none',
+        newProvider: bestProvider.name,
+        reason,
+        loadScore: bestState?.loadMetrics.loadScore || 0,
+        healthStatus: bestState?.status || 'unknown'
+      });
+      
+      return true;
+      
+    } catch (error) {
+      logger.error('Failed to perform intelligent provider switch', error instanceof Error ? error : new Error(String(error)), {
+        chainId,
+        reason
+      });
+      
+      // Fallback to basic switching
+      return await this.switchToHealthyProvider(chainId, reason);
+    }
   }
 
   /**
-   * Get provider statistics for a chain
+   * Get provider statistics for a chain - Enhanced with advanced metrics
    */
   getProviderStats(chainId: number): ProviderStats[] {
     this.ensureInitialized();
@@ -689,21 +939,35 @@ export class RpcProviderManager {
       throw new Error(`No providers configured for chain ${chainId}`);
     }
 
-    return providers.map(provider => ({
-      name: provider.name,
-      priority: provider.priority,
-      isHealthy: provider.isHealthy,
-      consecutiveFailures: provider.consecutiveFailures,
-      responseTime: provider.responseTime,
-      lastHealthCheck: provider.lastHealthCheck,
-      successRate: 0, // Will be calculated from Redis metrics later
-      totalRequests: 0, // Will be calculated from Redis metrics later
-      successfulRequests: 0 // Will be calculated from Redis metrics later
-    }));
+    return providers.map(provider => {
+      const baseStats = {
+        name: provider.name,
+        priority: provider.priority,
+        isHealthy: provider.isHealthy,
+        consecutiveFailures: provider.consecutiveFailures,
+        responseTime: provider.responseTime,
+        lastHealthCheck: provider.lastHealthCheck,
+        successRate: 0,
+        totalRequests: 0,
+        successfulRequests: 0
+      };
+      
+      // Enhance with advanced monitoring data if available
+      if (this.isAdvancedMonitoringEnabled && this.healthMonitor && typeof this.healthMonitor.getProviderHealthMetrics === 'function') {
+        const healthMetrics = this.healthMonitor.getProviderHealthMetrics(chainId, provider.name);
+        if (healthMetrics) {
+          baseStats.successRate = healthMetrics.successRate;
+          baseStats.totalRequests = healthMetrics.totalRequests;
+          baseStats.successfulRequests = healthMetrics.successfulRequests;
+        }
+      }
+      
+      return baseStats;
+    });
   }
 
   /**
-   * Get connection statistics for all chains - FIXED undefined handling
+   * Get connection statistics for all chains - Enhanced with comprehensive metrics
    */
   getConnectionStats(): ConnectionStats[] {
     this.ensureInitialized();
@@ -723,6 +987,26 @@ export class RpcProviderManager {
         ? providers.reduce((sum, p) => sum + p.responseTime, 0) / providers.length 
         : 0;
       
+      let totalRequests = 0;
+      let successfulRequests = 0;
+      let successRate = 0;
+      
+      // Enhance with advanced monitoring data if available
+      if (this.isAdvancedMonitoringEnabled && this.healthMonitor && 
+          typeof this.healthMonitor.getChainHealthStatus === 'function' && 
+          typeof this.healthMonitor.getAllProviderMetrics === 'function') {
+        const chainHealthStatus = this.healthMonitor.getChainHealthStatus(chainId);
+        if (chainHealthStatus) {
+          // Get aggregated metrics from health monitor
+          const allMetrics = this.healthMonitor.getAllProviderMetrics()
+            .filter(m => m.chainId === chainId);
+          
+          totalRequests = allMetrics.reduce((sum, m) => sum + m.totalRequests, 0);
+          successfulRequests = allMetrics.reduce((sum, m) => sum + m.successfulRequests, 0);
+          successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
+        }
+      }
+      
       stats.push({
         chainId,
         chainName: chainConfig.name,
@@ -730,9 +1014,9 @@ export class RpcProviderManager {
         healthyProviders: healthyProviders.length,
         currentProvider: currentProvider?.name || 'none',
         averageResponseTime,
-        totalRequests: 0, // Will be calculated from Redis metrics later
-        successfulRequests: 0, // Will be calculated from Redis metrics later
-        successRate: 0 // Will be calculated from Redis metrics later
+        totalRequests,
+        successfulRequests,
+        successRate
       });
     }
     
@@ -740,7 +1024,7 @@ export class RpcProviderManager {
   }
 
   /**
-   * Check if provider manager is healthy
+   * Check if provider manager is healthy - Enhanced with advanced monitoring
    */
   isHealthy(): boolean {
     if (!this.isInitialized) {
@@ -755,11 +1039,21 @@ export class RpcProviderManager {
       }
     }
     
+    // Check advanced monitoring components if enabled
+    if (this.isAdvancedMonitoringEnabled && this.healthMonitor && this.failoverLogic) {
+      if (typeof this.healthMonitor.isHealthy === 'function' && typeof this.failoverLogic.isHealthy === 'function') {
+        if (!this.healthMonitor.isHealthy() || !this.failoverLogic.isHealthy()) {
+          logger.warn('Advanced monitoring components are not healthy');
+          // Don't return false - basic functionality should still work
+        }
+      }
+    }
+    
     return true;
   }
 
   /**
-   * Graceful shutdown
+   * Graceful shutdown - Enhanced with advanced monitoring cleanup
    */
   async shutdown(): Promise<void> {
     logger.shutdown('Shutting down RPC Provider Manager...');
@@ -767,6 +1061,17 @@ export class RpcProviderManager {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
+    }
+    
+    // Shutdown advanced monitoring components
+    if (this.isAdvancedMonitoringEnabled && this.healthMonitor && this.failoverLogic) {
+      try {
+        await this.healthMonitor.shutdown();
+        await this.failoverLogic.shutdown();
+        logger.shutdown('Advanced monitoring components shut down');
+      } catch (error) {
+        logger.error('Error shutting down advanced monitoring components', error instanceof Error ? error : new Error(String(error)));
+      }
     }
     
     // Note: viem clients don't need explicit cleanup

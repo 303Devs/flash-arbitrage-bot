@@ -10,6 +10,7 @@ import { logger } from './src/utils/Logger.js';
 import { redisCache } from './src/storage/RedisCache.js';
 import { postgresRepository } from './src/storage/PostgresRepository.js';
 import { rpcProviderManager } from './src/data/RpcProviderManager.js';
+import { multiChainListener } from './src/data/MultiChainListener.js';
 
 // Load environment variables
 dotenv.config();
@@ -31,7 +32,9 @@ class FlashArbitrageBot {
       // Phase 1: Initialize infrastructure
       await this.initializeInfrastructure();
       
-      // TODO: Phase 2 - Start monitoring systems
+      // Phase 2: Start advanced monitoring systems
+      await this.initializeAdvancedMonitoring();
+      
       // TODO: Phase 3 - Start trading pipeline
       
       logger.startup('✅ Flash Arbitrage Bot started successfully');
@@ -59,6 +62,7 @@ class FlashArbitrageBot {
     logger.startup('🐘 Connecting to PostgreSQL...');
     await postgresRepository.connect();
     await postgresRepository.createTables();
+    await postgresRepository.createHealthMonitoringTables();
     logger.startup('✅ PostgreSQL connected successfully');
     
     // Initialize RPC Provider Manager
@@ -92,6 +96,40 @@ class FlashArbitrageBot {
   }
 
   /**
+   * Initialize Phase 2 advanced monitoring systems
+   */
+  private async initializeAdvancedMonitoring(): Promise<void> {
+    logger.startup('🔄 Initializing Phase 2 Advanced Monitoring...');
+    
+    try {
+      // Initialize MultiChain WebSocket Listener
+      logger.startup('📡 Starting MultiChain WebSocket Listener...');
+      await multiChainListener.initialize();
+      logger.startup('✅ MultiChain WebSocket Listener started successfully');
+      
+      // Log listener statistics
+      const listenerStats = multiChainListener.getListenerStats();
+      logger.startup('📊 WebSocket Listener Statistics:');
+      listenerStats.forEach(stats => {
+        logger.startup(`Chain ${stats.chainId} (${stats.chainName}):`, {
+          isConnected: stats.isConnected,
+          lastBlockNumber: stats.lastBlockNumber,
+          blocksReceived: stats.blocksReceived,
+          averageBlockTime: Math.round(stats.averageBlockTime * 100) / 100,
+          providerName: stats.providerName
+        });
+      });
+      
+      logger.startup('✅ Phase 2 Advanced Monitoring initialized successfully');
+      
+    } catch (error) {
+      logger.error('❌ Failed to initialize Phase 2 Advanced Monitoring', error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - basic functionality should still work
+      logger.warn('⚠️  Continuing with basic monitoring only');
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async shutdown(): Promise<void> {
@@ -104,7 +142,10 @@ class FlashArbitrageBot {
     
     try {
       // TODO: Stop trading pipeline when implemented
-      // TODO: Stop monitoring systems when implemented
+      
+      // Shutdown Phase 2 monitoring systems
+      logger.shutdown('📡 Shutting down MultiChain WebSocket Listener...');
+      await multiChainListener.shutdown();
       
       // Shutdown infrastructure in reverse order
       logger.shutdown('⛓️  Shutting down RPC Provider Manager...');

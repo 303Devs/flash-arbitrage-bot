@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { logger } from '../utils/Logger.js';
 
 // Database interfaces for type safety
@@ -532,6 +532,504 @@ export class PostgresRepository {
       idleConnections: this.pool.idleCount,
       waitingClients: this.pool.waitingCount,
     };
+  }
+
+  // ================================
+  // PHASE 2 ENHANCEMENTS - Health Monitoring Tables
+  // ================================
+
+  /**
+   * Create health monitoring tables
+   */
+  async createHealthMonitoringTables(): Promise<void> {
+    const client = await this.pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Provider health events table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS provider_health_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          chain_id INTEGER NOT NULL,
+          provider_name VARCHAR(50) NOT NULL,
+          health_score INTEGER NOT NULL,
+          is_healthy BOOLEAN NOT NULL,
+          consecutive_failures INTEGER NOT NULL,
+          response_time INTEGER NOT NULL,
+          success_rate DECIMAL(5,2) NOT NULL,
+          degradation_trend VARCHAR(20) NOT NULL,
+          block_sync_status JSONB,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      // Circuit breaker events table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS circuit_breaker_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          chain_id INTEGER NOT NULL,
+          provider_name VARCHAR(50) NOT NULL,
+          event_type VARCHAR(20) NOT NULL CHECK (event_type IN ('opened', 'closed', 'half_open')),
+          failure_count INTEGER NOT NULL,
+          trigger_reason TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      // Failover events table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS failover_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          chain_id INTEGER NOT NULL,
+          from_provider VARCHAR(50) NOT NULL,
+          to_provider VARCHAR(50) NOT NULL,
+          reason TEXT NOT NULL,
+          trigger_rule VARCHAR(100),
+          switch_latency INTEGER NOT NULL,
+          success BOOLEAN NOT NULL,
+          error_message TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      // Provider performance snapshots table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS provider_performance_snapshots (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          chain_id INTEGER NOT NULL,
+          provider_name VARCHAR(50) NOT NULL,
+          total_requests INTEGER NOT NULL,
+          successful_requests INTEGER NOT NULL,
+          failed_requests INTEGER NOT NULL,
+          success_rate DECIMAL(5,2) NOT NULL,
+          average_response_time INTEGER NOT NULL,
+          load_score DECIMAL(8,2) NOT NULL,
+          active_requests INTEGER NOT NULL,
+          requests_per_second DECIMAL(8,2) NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      // Create indexes for performance
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_provider_health_events_timestamp ON provider_health_events (timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_provider_health_events_chain_provider ON provider_health_events (chain_id, provider_name);
+        CREATE INDEX IF NOT EXISTS idx_provider_health_events_health_score ON provider_health_events (health_score);
+        
+        CREATE INDEX IF NOT EXISTS idx_circuit_breaker_events_timestamp ON circuit_breaker_events (timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_circuit_breaker_events_chain_provider ON circuit_breaker_events (chain_id, provider_name);
+        CREATE INDEX IF NOT EXISTS idx_circuit_breaker_events_type ON circuit_breaker_events (event_type);
+        
+        CREATE INDEX IF NOT EXISTS idx_failover_events_timestamp ON failover_events (timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_failover_events_chain ON failover_events (chain_id);
+        CREATE INDEX IF NOT EXISTS idx_failover_events_success ON failover_events (success);
+        
+        CREATE INDEX IF NOT EXISTS idx_provider_performance_timestamp ON provider_performance_snapshots (timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_provider_performance_chain_provider ON provider_performance_snapshots (chain_id, provider_name);
+        CREATE INDEX IF NOT EXISTS idx_provider_performance_success_rate ON provider_performance_snapshots (success_rate);
+      `);
+
+      await client.query('COMMIT');
+      logger.info('Health monitoring tables created successfully');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Failed to create health monitoring tables', { error });
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Log provider health event
+   */
+  async logProviderHealthEvent(event: {
+    chainId: number;
+    providerName: string;
+    healthScore: number;
+    isHealthy: boolean;
+    consecutiveFailures: number;
+    responseTime: number;
+    successRate: number;
+    degradationTrend: string;
+    blockSyncStatus?: any;
+    timestamp?: Date;
+  }): Promise<string> {
+    const query = `
+      INSERT INTO provider_health_events (
+        timestamp, chain_id, provider_name, health_score, is_healthy,
+        consecutive_failures, response_time, success_rate, degradation_trend, block_sync_status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id
+    `;
+    
+    const values = [
+      event.timestamp || new Date(),
+      event.chainId,
+      event.providerName,
+      event.healthScore,
+      event.isHealthy,
+      event.consecutiveFailures,
+      event.responseTime,
+      event.successRate,
+      event.degradationTrend,
+      event.blockSyncStatus ? JSON.stringify(event.blockSyncStatus) : null,
+    ];
+
+    try {
+      const result = await this.pool.query(query, values);
+      const eventId = result.rows[0].id;
+      
+      logger.debug('Provider health event logged', { 
+        eventId, 
+        chainId: event.chainId,
+        providerName: event.providerName,
+        healthScore: event.healthScore
+      });
+      
+      return eventId;
+    } catch (error) {
+      logger.error('Failed to log provider health event', { event, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Log circuit breaker event
+   */
+  async logCircuitBreakerEvent(event: {
+    chainId: number;
+    providerName: string;
+    eventType: 'opened' | 'closed' | 'half_open';
+    failureCount: number;
+    triggerReason?: string;
+    timestamp?: Date;
+  }): Promise<string> {
+    const query = `
+      INSERT INTO circuit_breaker_events (
+        timestamp, chain_id, provider_name, event_type, failure_count, trigger_reason
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `;
+    
+    const values = [
+      event.timestamp || new Date(),
+      event.chainId,
+      event.providerName,
+      event.eventType,
+      event.failureCount,
+      event.triggerReason || null,
+    ];
+
+    try {
+      const result = await this.pool.query(query, values);
+      const eventId = result.rows[0].id;
+      
+      logger.debug('Circuit breaker event logged', { 
+        eventId, 
+        chainId: event.chainId,
+        providerName: event.providerName,
+        eventType: event.eventType
+      });
+      
+      return eventId;
+    } catch (error) {
+      logger.error('Failed to log circuit breaker event', { event, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Log failover event
+   */
+  async logFailoverEvent(event: {
+    chainId: number;
+    fromProvider: string;
+    toProvider: string;
+    reason: string;
+    triggerRule?: string;
+    switchLatency: number;
+    success: boolean;
+    errorMessage?: string;
+    timestamp?: Date;
+  }): Promise<string> {
+    const query = `
+      INSERT INTO failover_events (
+        timestamp, chain_id, from_provider, to_provider, reason,
+        trigger_rule, switch_latency, success, error_message
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `;
+    
+    const values = [
+      event.timestamp || new Date(),
+      event.chainId,
+      event.fromProvider,
+      event.toProvider,
+      event.reason,
+      event.triggerRule || null,
+      event.switchLatency,
+      event.success,
+      event.errorMessage || null,
+    ];
+
+    try {
+      const result = await this.pool.query(query, values);
+      const eventId = result.rows[0].id;
+      
+      logger.info('Failover event logged', { 
+        eventId, 
+        chainId: event.chainId,
+        fromProvider: event.fromProvider,
+        toProvider: event.toProvider,
+        success: event.success
+      });
+      
+      return eventId;
+    } catch (error) {
+      logger.error('Failed to log failover event', { event, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Log provider performance snapshot
+   */
+  async logProviderPerformanceSnapshot(snapshot: {
+    chainId: number;
+    providerName: string;
+    totalRequests: number;
+    successfulRequests: number;
+    failedRequests: number;
+    successRate: number;
+    averageResponseTime: number;
+    loadScore: number;
+    activeRequests: number;
+    requestsPerSecond: number;
+    timestamp?: Date;
+  }): Promise<string> {
+    const query = `
+      INSERT INTO provider_performance_snapshots (
+        timestamp, chain_id, provider_name, total_requests, successful_requests,
+        failed_requests, success_rate, average_response_time, load_score,
+        active_requests, requests_per_second
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id
+    `;
+    
+    const values = [
+      snapshot.timestamp || new Date(),
+      snapshot.chainId,
+      snapshot.providerName,
+      snapshot.totalRequests,
+      snapshot.successfulRequests,
+      snapshot.failedRequests,
+      snapshot.successRate,
+      snapshot.averageResponseTime,
+      snapshot.loadScore,
+      snapshot.activeRequests,
+      snapshot.requestsPerSecond,
+    ];
+
+    try {
+      const result = await this.pool.query(query, values);
+      const snapshotId = result.rows[0].id;
+      
+      logger.debug('Provider performance snapshot logged', { 
+        snapshotId, 
+        chainId: snapshot.chainId,
+        providerName: snapshot.providerName,
+        successRate: snapshot.successRate
+      });
+      
+      return snapshotId;
+    } catch (error) {
+      logger.error('Failed to log provider performance snapshot', { snapshot, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get provider health history
+   */
+  async getProviderHealthHistory(chainId: number, providerName: string, hours: number = 24): Promise<any[]> {
+    const query = `
+      SELECT 
+        timestamp, health_score, is_healthy, consecutive_failures,
+        response_time, success_rate, degradation_trend, block_sync_status
+      FROM provider_health_events
+      WHERE chain_id = $1 AND provider_name = $2
+        AND timestamp >= NOW() - INTERVAL '${hours} hours'
+      ORDER BY timestamp DESC
+      LIMIT 1000
+    `;
+
+    try {
+      const result = await this.pool.query(query, [chainId, providerName]);
+      return result.rows;
+    } catch (error) {
+      logger.error('Failed to get provider health history', { chainId, providerName, hours, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get failover statistics
+   */
+  async getFailoverStats(chainId?: number, hours: number = 24): Promise<{
+    totalFailovers: number;
+    successfulFailovers: number;
+    failedFailovers: number;
+    averageLatency: number;
+    mostCommonReason: string;
+    providerSwitches: Array<{ fromProvider: string; toProvider: string; count: number }>;
+  }> {
+    let whereClause = "WHERE timestamp >= NOW() - INTERVAL '" + hours + " hours'";
+    const values: any[] = [];
+    
+    if (chainId) {
+      whereClause += " AND chain_id = $1";
+      values.push(chainId);
+    }
+
+    try {
+      // Get basic statistics
+      const statsQuery = `
+        SELECT 
+          COUNT(*) as total_failovers,
+          COUNT(*) FILTER (WHERE success = true) as successful_failovers,
+          COUNT(*) FILTER (WHERE success = false) as failed_failovers,
+          COALESCE(AVG(switch_latency), 0) as average_latency
+        FROM failover_events
+        ${whereClause}
+      `;
+      
+      const statsResult = await this.pool.query(statsQuery, values);
+      const stats = statsResult.rows[0];
+      
+      // Get most common reason
+      const reasonQuery = `
+        SELECT reason, COUNT(*) as count
+        FROM failover_events
+        ${whereClause}
+        GROUP BY reason
+        ORDER BY count DESC
+        LIMIT 1
+      `;
+      
+      const reasonResult = await this.pool.query(reasonQuery, values);
+      const mostCommonReason = reasonResult.rows[0]?.reason || 'none';
+      
+      // Get provider switches
+      const switchesQuery = `
+        SELECT from_provider, to_provider, COUNT(*) as count
+        FROM failover_events
+        ${whereClause}
+        GROUP BY from_provider, to_provider
+        ORDER BY count DESC
+        LIMIT 10
+      `;
+      
+      const switchesResult = await this.pool.query(switchesQuery, values);
+      const providerSwitches = switchesResult.rows.map(row => ({
+        fromProvider: row.from_provider,
+        toProvider: row.to_provider,
+        count: parseInt(row.count)
+      }));
+      
+      return {
+        totalFailovers: parseInt(stats.total_failovers),
+        successfulFailovers: parseInt(stats.successful_failovers),
+        failedFailovers: parseInt(stats.failed_failovers),
+        averageLatency: Math.round(parseFloat(stats.average_latency)),
+        mostCommonReason,
+        providerSwitches
+      };
+      
+    } catch (error) {
+      logger.error('Failed to get failover statistics', { chainId, hours, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get provider reliability metrics
+   */
+  async getProviderReliabilityMetrics(chainId: number, hours: number = 24): Promise<Array<{
+    providerName: string;
+    averageHealthScore: number;
+    uptimePercentage: number;
+    failoverCount: number;
+    circuitBreakerEvents: number;
+    averageResponseTime: number;
+    currentSuccessRate: number;
+  }>> {
+    const query = `
+      WITH provider_stats AS (
+        SELECT 
+          provider_name,
+          AVG(health_score) as avg_health_score,
+          (COUNT(*) FILTER (WHERE is_healthy = true) * 100.0 / COUNT(*)) as uptime_percentage,
+          AVG(response_time) as avg_response_time,
+          AVG(success_rate) as avg_success_rate
+        FROM provider_health_events
+        WHERE chain_id = $1 AND timestamp >= NOW() - INTERVAL '${hours} hours'
+        GROUP BY provider_name
+      ),
+      failover_counts AS (
+        SELECT 
+          from_provider as provider_name,
+          COUNT(*) as failover_count
+        FROM failover_events
+        WHERE chain_id = $1 AND timestamp >= NOW() - INTERVAL '${hours} hours'
+        GROUP BY from_provider
+      ),
+      circuit_breaker_counts AS (
+        SELECT 
+          provider_name,
+          COUNT(*) as circuit_breaker_events
+        FROM circuit_breaker_events
+        WHERE chain_id = $1 AND timestamp >= NOW() - INTERVAL '${hours} hours'
+        GROUP BY provider_name
+      )
+      SELECT 
+        ps.provider_name,
+        COALESCE(ps.avg_health_score, 0) as average_health_score,
+        COALESCE(ps.uptime_percentage, 0) as uptime_percentage,
+        COALESCE(fc.failover_count, 0) as failover_count,
+        COALESCE(cbc.circuit_breaker_events, 0) as circuit_breaker_events,
+        COALESCE(ps.avg_response_time, 0) as average_response_time,
+        COALESCE(ps.avg_success_rate, 0) as current_success_rate
+      FROM provider_stats ps
+      LEFT JOIN failover_counts fc ON ps.provider_name = fc.provider_name
+      LEFT JOIN circuit_breaker_counts cbc ON ps.provider_name = cbc.provider_name
+      ORDER BY ps.avg_health_score DESC
+    `;
+
+    try {
+      const result = await this.pool.query(query, [chainId]);
+      return result.rows.map(row => ({
+        providerName: row.provider_name,
+        averageHealthScore: Math.round(parseFloat(row.average_health_score)),
+        uptimePercentage: Math.round(parseFloat(row.uptime_percentage) * 10) / 10,
+        failoverCount: parseInt(row.failover_count),
+        circuitBreakerEvents: parseInt(row.circuit_breaker_events),
+        averageResponseTime: Math.round(parseFloat(row.average_response_time)),
+        currentSuccessRate: Math.round(parseFloat(row.current_success_rate) * 10) / 10
+      }));
+    } catch (error) {
+      logger.error('Failed to get provider reliability metrics', { chainId, hours, error });
+      throw error;
+    }
   }
 }
 
