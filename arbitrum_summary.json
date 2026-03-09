@@ -1,0 +1,619 @@
+{
+  "metadata": {
+    "chain": {
+      "id": "arbitrum",
+      "name": "Arbitrum",
+      "chain_id": null,
+      "native_token": "ETH"
+    },
+    "dataTimestamp": "2025-08-01T00:37:53.200Z",
+    "totalDexes": 74,
+    "totalPools": 0,
+    "totalTradingPairs": 0
+  },
+  "chainInfo": {
+    "id": "arbitrum",
+    "name": "Arbitrum",
+    "chain_id": null,
+    "native_token": "ETH"
+  },
+  "dexSummary": [
+    {
+      "name": "SushiSwap (Arbitrum)",
+      "id": "sushiswap_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Uniswap V3 (Arbitrum)",
+      "id": "uniswap_v3_arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Swapr (Arbitrum)",
+      "id": "swapr_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Fraxswap (Arbitrum)",
+      "id": "fraxswap_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Curve (Arbitrum)",
+      "id": "curve_arbitrum",
+      "type": "stable_swap",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Kyberswap Elastic (Arbitrum)",
+      "id": "kyberswap_elastic_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Kyberswap Classic (Arbitrum)",
+      "id": "kyberswap_classic_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Elk Finance (Arbitrum)",
+      "id": "elk_finance_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Camelot",
+      "id": "camelot",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "3xcalibur",
+      "id": "3xcalibur",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SwapFish",
+      "id": "swapfish",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Arbswap (Arbitrum One)",
+      "id": "arbswap_arbitrum_one",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "OreoSwap",
+      "id": "oreoswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Balancer V2 (Arbitrum)",
+      "id": "balancer_arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "LFJ V2 (Arbitrum)",
+      "id": "traderjoe-v2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Magicswap",
+      "id": "magicswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Zyberswap",
+      "id": "zyberswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SolidLizard",
+      "id": "solidlizard",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SharkySwap",
+      "id": "sharkyswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "AlienFi",
+      "id": "alienfi",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "ArbiSwap",
+      "id": "arbiswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Sterling",
+      "id": "sterling",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "OasisSwap",
+      "id": "oasisswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Mindgames (Arbitrum)",
+      "id": "mindgames-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Archly (Arbitrum)",
+      "id": "archly-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Arbidex",
+      "id": "arbidex",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Apeswap (Arbitrum)",
+      "id": "apeswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "MM Finance (Arbitrum)",
+      "id": "mm-finance-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Ramses",
+      "id": "ramses",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Auragi",
+      "id": "auragi",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Aegis",
+      "id": "aegis",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "MM Finance V3 (Arbitrum)",
+      "id": "mm-finance-v3-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Camelot V3",
+      "id": "camelot-v3",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "LFJ V2.1 (Arbitrum)",
+      "id": "traderjoe-v2-1-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Arbswap StableSwap (Arbitrum)",
+      "id": "arbswap-stableswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Whitehole (Arbitrum)",
+      "id": "whitehole-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Chronos",
+      "id": "chronos",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "LFGswap (Arbitrum)",
+      "id": "lfgswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Swaprum",
+      "id": "swaprum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Solunea (Arbitrum)",
+      "id": "solunea-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Arbidex V3",
+      "id": "arbidex-v3",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "CrescentSwap",
+      "id": "crescentswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Ramses V2",
+      "id": "ramses-v2",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Sushiswap V3 (Arbitrum)",
+      "id": "sushiswap-v3-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "dexSWAP",
+      "id": "dexswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Forge Sx",
+      "id": "forge-sx",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Degenbrains",
+      "id": "degenbrains",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SpartaDEX",
+      "id": "spartadex",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Pancakeswap V2 (Arbitrum)",
+      "id": "pancakeswap-v2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Pancakeswap V3 (Arbitrum)",
+      "id": "pancakeswap-v3-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SmarDex (Arbitrum)",
+      "id": "smardex-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "DarwinSwap",
+      "id": "darwinswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "PixelSwap (Arbitrum)",
+      "id": "pixelswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Antfarm (Arbitrum)",
+      "id": "antfarm-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Dex on Crypto (Arbitrum)",
+      "id": "dex-on-crypto-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "ShekelSwap",
+      "id": "shekelswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SpinaqDex",
+      "id": "spinaqdex",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Woken Exchange (Arbitrum)",
+      "id": "woken-exchange-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "KaleidoSwap (Arbitrum)",
+      "id": "kaleidoswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "GasX",
+      "id": "gasx",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Uniswap V2 (Arbitrum)",
+      "id": "uniswap-v2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "DackieSwap V2 (Arbitrum)",
+      "id": "dackieswap-v2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "DackieSwap V3 (Arbitrum)",
+      "id": "dackieswap-v3-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Pancakeswap Stableswap (Arbitrum)",
+      "id": "pancakeswap-stableswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Solidly V3 (Arbitrum)",
+      "id": "solidly-v3-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "KEWLSwap (Arbitrum)",
+      "id": "kewlswap-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "LFJ V2.2 (Arbitrum)",
+      "id": "traderjoe-v2-2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Moonbase Alpha",
+      "id": "moonbase-alpha",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Deltaswap (Arbitrum)",
+      "id": "deltaswap",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "EtherVista (Arbitrum)",
+      "id": "ethervista-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SquadSwap V2 (Arbitrum)",
+      "id": "squadswap-v2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "SquadSwap V3 (Arbitrum)",
+      "id": "squadswap-v3-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Uniswap V4 (Arbitrum)",
+      "id": "uniswap-v4-arbitrum",
+      "type": "concentrated_liquidity",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    },
+    {
+      "name": "Maverick V2 (Arbitrum)",
+      "id": "maverick-v2-arbitrum",
+      "type": "constant_product",
+      "poolCount": 0,
+      "totalLiquidity": "0",
+      "topPoolsByLiquidity": []
+    }
+  ],
+  "topTokensByPoolCount": [],
+  "tradingPairsSummary": {
+    "totalPairs": 0,
+    "topPairs": []
+  }
+}

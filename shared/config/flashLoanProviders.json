@@ -1,0 +1,106 @@
+{
+  "arbitrum": [
+    {
+      "name": "Balancer V2",
+      "vaultAddress": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+      "fee": 0,
+      "gasEstimate": 200000,
+      "note": "FREE flash loans - preferred provider",
+      "pools": {
+        "WETH-WBTC-USDC": {
+          "poolId": "0x64541216bafffeec8ea535bb71fbc927831d0595000100000000000000000002",
+          "tokens": ["WETH", "WBTC", "USDC"],
+          "liquidityUSD": 501880
+        },
+        "USDC-USDT-DAI": {
+          "poolId": "0x1533a3278f3f9141d5f820a184ea4b017fce2382000000000000000000000016",
+          "tokens": ["USDT", "USDC", "DAI"],
+          "liquidityUSD": 138450
+        },
+        "ARB-WETH": {
+          "poolId": "0xa83b8d30f61d7554ad425d8067d8ba6eaeb6b042000200000000000000000525",
+          "tokens": ["WETH", "ARB"],
+          "liquidityUSD": 21610
+        }
+      }
+    },
+    {
+      "name": "Aave V3",
+      "poolAddress": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+      "fee": 0.0009,
+      "gasEstimate": 300000,
+      "maxAmount": {
+        "WETH": "50000",
+        "USDC": "100000000",
+        "USDT": "50000000",
+        "DAI": "50000000"
+      }
+    }
+  ],
+  "polygon": [
+    {
+      "name": "Balancer V2",
+      "vaultAddress": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+      "fee": 0,
+      "gasEstimate": 300000,
+      "note": "PRIMARY - Highest TVL pools ($1.7M+ on Polygon)",
+      "pools": {
+        "WETH-WBTC-USDC": {
+          "poolId": "0x03cd191f589d12b0582a99808cf19851e468e6b500010000000000000000000a",
+          "tokens": ["WETH", "WBTC", "USDC"],
+          "liquidityUSD": 1731590,
+          "note": "Polygon Tricrypto - highest TVL"
+        },
+        "WMATIC-USDC-WETH": {
+          "poolId": "0x0297e37f1873d2dab4487aa67cd56b58e2f27875000100000000000000000002",
+          "tokens": ["WMATIC", "USDC", "WETH"],
+          "liquidityUSD": 355730
+        }
+      }
+    },
+    {
+      "name": "Aave V3",
+      "poolAddress": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+      "fee": 0.0009,
+      "gasEstimate": 350000,
+      "maxAmount": {
+        "WETH": "40000",
+        "USDC": "80000000",
+        "USDT": "40000000",
+        "DAI": "40000000"
+      }
+    }
+  ],
+  "base": [
+    {
+      "name": "Balancer V2",
+      "vaultAddress": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+      "fee": 0,
+      "gasEstimate": 200000,
+      "note": "FREE - Very cheap gas on Base",
+      "pools": {
+        "WETH-USDC": {
+          "poolId": "0x250f0df8fbd0d749e4aadc05d91c5d8f9053d4370002000000000000000001e4",
+          "tokens": ["WETH", "USDC"],
+          "liquidityUSD": 485710,
+          "note": "Gyroscope ECLP WETH/USDC"
+        },
+        "WETH-DAI": {
+          "poolId": "0x2db50a0e0310723ef0c2a165cb9a9f80d772ba2f00020000000000000000000d",
+          "tokens": ["WETH", "DAI"],
+          "liquidityUSD": 2950
+        }
+      }
+    },
+    {
+      "name": "Aave V3",
+      "poolAddress": "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5",
+      "fee": 0.0009,
+      "gasEstimate": 280000,
+      "maxAmount": {
+        "WETH": "30000",
+        "USDC": "60000000"
+      }
+    }
+  ]
+}

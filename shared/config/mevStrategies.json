@@ -1,0 +1,50 @@
+{
+  "sandwich": {
+    "enabled": true,
+    "minVictimSize": "1.0",
+    "maxPositionSize": "100.0", 
+    "minProfitThreshold": "0.01",
+    "gasMultiplier": 1.2,
+    "maxSlippage": 0.005,
+    "targetPairs": [
+      "WETH/USDC",
+      "WETH/USDT", 
+      "USDC/USDT"
+    ]
+  },
+  "jitLiquidity": {
+    "enabled": true,
+    "minSwapSize": "5.0",
+    "minImpactRatio": 0.1,
+    "positionMultiplier": 2.0,
+    "feeEstimate": 0.0030,
+    "targetPools": [
+      "WETH/USDC/500",
+      "WETH/USDC/3000",
+      "WETH/USDT/500"
+    ]
+  },
+  "liquidation": {
+    "enabled": true,
+    "protocols": [
+      "aave-v3",
+      "compound-v3"
+    ],
+    "healthFactorThreshold": 1.05,
+    "minLiquidationBonus": 0.05,
+    "gasBuffer": 1.5,
+    "monitoringInterval": 1000
+  },
+  "arbitrage": {
+    "enabled": true,
+    "minProfitBps": 10,
+    "maxHops": 3,
+    "excludeDexes": [],
+    "priorityPairs": [
+      "WETH/USDC",
+      "WETH/USDT",
+      "USDC/USDT",
+      "WMATIC/USDC"
+    ]
+  }
+}
