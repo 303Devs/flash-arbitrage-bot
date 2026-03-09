@@ -24,7 +24,26 @@ import {
 import { validateOpportunity } from './decimal-fix.js';
 import { buildSwapCalldata, withSlippage, type SwapParams } from '../utils/calldata-builder.js';
 import { DynamicGasOptimizer } from '../utils/gas-optimizer.js';
+import { findBestPool } from '../contracts/balancer-pools.js';
 import { logger } from '../monitoring/logger.js';
+
+// FlashLoanProvider enum mirrors the Solidity contract
+const FL = { BALANCER: 0, AAVE: 1 } as const;
+
+/**
+ * Select the best flash loan provider for a given token on a chain.
+ * Prefer Balancer (0% fee). Fall back to Aave (0.09% fee) if Balancer
+ * doesn't have a pool containing the token.
+ */
+function selectFlashLoanProvider(tokenSymbol: string, chainId: number): number {
+  const pool = findBestPool(chainId, tokenSymbol);
+  if (pool) {
+    logger.debug(`Flash loan: Balancer (0% fee) via pool ${pool.poolId.slice(0, 10)}...`);
+    return FL.BALANCER;
+  }
+  logger.debug(`Flash loan: Aave (0.09% fee) - no Balancer pool for ${tokenSymbol} on chain ${chainId}`);
+  return FL.AAVE;
+}
 
 const CONTRACT_ABI = [
   `function executeArbitrage(
@@ -187,9 +206,12 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
         { factory: opportunity.sellDexFactory }
       );
 
+      // Select flash loan provider: Balancer (0% fee) if it has the token, else Aave (0.09%)
+      const flashLoanProvider = selectFlashLoanProvider(opportunity.tokenASymbol, chainId);
+
       // Build the params struct for the contract
       const params = {
-        provider:       0, // 0 = BALANCER (free flash loans preferred)
+        provider: flashLoanProvider,
         tokenIn:        opportunity.tokenA,
         tokenOut:       opportunity.tokenB,
         flashAmount,
@@ -227,6 +249,7 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
           pair:      `${opportunity.tokenASymbol}/${opportunity.tokenBSymbol}`,
           buyDex:    opportunity.buyDex,
           sellDex:   opportunity.sellDex,
+          flashLoan: flashLoanProvider === FL.BALANCER ? 'Balancer (free)' : 'Aave (0.09%)',
           profit:    `$${opportunity.expectedProfit.toFixed(2)}`,
           latency:   `${Date.now() - startTime}ms`,
         });
