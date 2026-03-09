@@ -8,6 +8,7 @@
  * - Nonce management (prevents "replacement fee too low" errors)
  * - Real-time metrics
  * - Duplicate execution prevention
+ * - Competitive gas pricing
  */
 
 import { ethers } from 'ethers';
@@ -18,36 +19,12 @@ import {
   CircuitBreakerService,
   TransactionManagerService,
   MetricsService,
-  ArbitrageOpportunity,
-  TokenInfo,
+  type ArbitrageOpportunity,
 } from './services.js';
-import { validateOpportunity, executeArbitrageFixed } from './decimal-fix.js';
+import { validateOpportunity } from './decimal-fix.js';
+import { buildSwapCalldata, withSlippage, type SwapParams } from '../utils/calldata-builder.js';
+import { DynamicGasOptimizer } from '../utils/gas-optimizer.js';
 import { logger } from '../monitoring/logger.js';
-
-// DEX router addresses per chain (for mapping DEX name → address)
-export const DEX_ROUTERS: Record<number, Record<string, string>> = {
-  42161: { // Arbitrum
-    'uniswap-v3': '0xE592427A0AEce92De3Edee1F18E0157C05861564',
-    'uniswap-v2': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-    'sushiswap':  '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
-    'camelot':    '0xc873fEcbd354f5A56E00E710B90EF4201db2448d',
-    'balancer':   '0xBA12222222228d8Ba445958a75a0704d566BF2C8',
-    'curve':      '0x7544Fe977a8546c47cA37878CfcB8CF27B70C0D0',
-  },
-  137: { // Polygon
-    'uniswap-v3': '0xE592427A0AEce92De3Edee1F18E0157C05861564',
-    'sushiswap':  '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
-    'quickswap':  '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff',
-    'balancer':   '0xBA12222222228d8Ba445958a75a0704d566BF2C8',
-    'curve':      '0x47bB542B9dE58b970bA50c9dae444DDB4c16751a',
-  },
-  8453: { // Base
-    'uniswap-v3': '0x2626664c2603336E57B271c5C0b26F421741e481',
-    'aerodrome':  '0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43',
-    'balancer':   '0xBA12222222228d8Ba445958a75a0704d566BF2C8',
-    'curve':      '0xf3A6aa40cf048a3960E9664847E9a7be025a390a',
-  },
-};
 
 const CONTRACT_ABI = [
   `function executeArbitrage(
@@ -72,17 +49,18 @@ const CONTRACT_ABI = [
 ];
 
 interface ExecutionResult {
-  success: boolean;
-  txHash?: string;
-  profit?: number;
-  gasCost?: number;
-  latencyMs: number;
+  success:       boolean;
+  txHash?:       string;
+  profit?:       number;
+  gasCostUSD?:   number;
+  latencyMs:     number;
   failureReason?: string;
 }
 
 export class EnterpriseArbitrageExecutor extends EventEmitter {
-  private contracts  = new Map<number, ethers.Contract>();
-  private wallet:    ethers.Wallet;
+  private contracts    = new Map<number, ethers.Contract>();
+  private wallet:      ethers.Wallet;
+  private gasOptimizer = new DynamicGasOptimizer();
 
   // Service layer
   private profitCalc     = new ProfitCalculatorService();
@@ -94,7 +72,7 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
   private activeExecutions = new Map<string, Promise<ExecutionResult>>();
 
   constructor(
-    private providers: Map<number, ethers.Provider>,
+    private providers:         Map<number, ethers.Provider>,
     private contractAddresses: Map<number, string>,
     privateKey: string,
     redisUrl?: string
@@ -125,7 +103,7 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
     const startTime   = Date.now();
     const executionId = `${opportunity.chainId}-${opportunity.id}`;
 
-    // Validate opportunity (decimal precision, staleness, profit floor)
+    // Validate opportunity (staleness, profit floor, decimal sanity)
     const validation = validateOpportunity({
       id:             opportunity.id,
       timestamp:      opportunity.timestamp,
@@ -142,7 +120,7 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
       return { success: false, latencyMs: Date.now() - startTime, failureReason: 'Circuit breaker active' };
     }
 
-    // Prevent duplicate executions
+    // Prevent duplicate executions of the same opportunity
     if (this.activeExecutions.has(executionId)) {
       return { success: false, latencyMs: Date.now() - startTime, failureReason: 'Already in progress' };
     }
@@ -164,49 +142,120 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
       const provider = this.providers.get(chainId);
       if (!contract || !provider) throw new Error(`No contract/provider for chain ${chainId}`);
 
-      // Map opportunity to the format executeArbitrageFixed expects
-      const formatted = {
-        id:             opportunity.id,
-        chainId:        opportunity.chainId,
-        tokenA:         { address: opportunity.tokenA },
-        tokenB:         { address: opportunity.tokenB },
-        dexA:           { router: DEX_ROUTERS[chainId]?.[opportunity.buyDex]  || '' },
-        dexB:           { router: DEX_ROUTERS[chainId]?.[opportunity.sellDex] || '' },
-        optimalAmount:  parseFloat(opportunity.amountIn) || 1000,
-        estimatedProfit: opportunity.expectedProfit,
-        timestamp:      opportunity.timestamp,
+      const contractAddress = this.contractAddresses.get(chainId)!;
+      const flashAmount     = BigInt(opportunity.amountIn);
+      const minProfit       = BigInt(opportunity.minProfitWei);
+
+      // Build swap calldata - the most important step.
+      // These are the exact ABI-encoded function calls the contract will execute.
+      const buyParams: SwapParams = {
+        tokenIn:          opportunity.tokenA,
+        tokenOut:         opportunity.tokenB,
+        amountIn:         flashAmount,
+        amountOutMinimum: 0n, // No slippage protection in sim - profit check happens on-chain
+        recipient:        contractAddress,
+        fee:              opportunity.buyFee,
+        stable:           false,
+        factory:          opportunity.buyDexFactory,
       };
 
-      const result = await executeArbitrageFixed(formatted, contract, provider);
+      // For the sell leg, amountIn = expected tokenB output from the buy leg.
+      // We use withSlippage(0.5%) so minor price movement doesn't cause reverts.
+      const expectedBuyOutput = BigInt(opportunity.buyAmountOut);
+      const sellParams: SwapParams = {
+        tokenIn:          opportunity.tokenB,
+        tokenOut:         opportunity.tokenA,
+        amountIn:         withSlippage(expectedBuyOutput, 50), // 99.5% of expected (0.5% slippage)
+        amountOutMinimum: flashAmount + minProfit, // Must return at least flash amount + min profit
+        recipient:        contractAddress,
+        fee:              opportunity.sellFee,
+        stable:           false,
+        factory:          opportunity.sellDexFactory,
+      };
 
-      if (result.success) {
+      const swapDataA = buildSwapCalldata(
+        opportunity.buyDexType,
+        opportunity.buyDex,
+        buyParams,
+        { factory: opportunity.buyDexFactory }
+      );
+
+      const swapDataB = buildSwapCalldata(
+        opportunity.sellDexType,
+        opportunity.sellDex,
+        sellParams,
+        { factory: opportunity.sellDexFactory }
+      );
+
+      // Build the params struct for the contract
+      const params = {
+        provider:       0, // 0 = BALANCER (free flash loans preferred)
+        tokenIn:        opportunity.tokenA,
+        tokenOut:       opportunity.tokenB,
+        flashAmount,
+        minProfit,
+        dexA:           opportunity.buyDexRouter,
+        dexB:           opportunity.sellDexRouter,
+        swapDataA,
+        swapDataB,
+        executor:       this.wallet.address,
+        preFlashBalance: 0n, // Contract captures this on-chain
+      };
+
+      // Get competitive gas pricing
+      const gasParams = await this.gasOptimizer.getOptimalGasParams(chainId, provider, opportunity.id);
+
+      const txOpts: Record<string, unknown> = { gasLimit: gasParams.gasLimit };
+      if (chainId === 137 || chainId === 8453) {
+        txOpts.maxFeePerGas         = gasParams.maxFeePerGas;
+        txOpts.maxPriorityFeePerGas = gasParams.maxPriorityFeePerGas;
+      } else {
+        txOpts.gasPrice = gasParams.gasPrice;
+      }
+
+      const connectedContract = contract.connect(this.wallet.connect(provider)) as ethers.Contract;
+      const tx = await (connectedContract as any).executeArbitrage(params, txOpts);
+      const receipt = await tx.wait();
+
+      if (receipt.status === 1) {
         this.circuitBreaker.recordSuccess(chainId);
-        this.metrics.recordExecution(true, opportunity.expectedProfit, 0, Date.now() - startTime);
+        this.metrics.recordExecution(true, opportunity.expectedProfit, opportunity.gasCostUSD, Date.now() - startTime);
 
         logger.info('🎉 ARBITRAGE SUCCESS!', {
-          txHash:  result.hash,
-          gasUsed: result.gasUsed?.toString(),
-          profit:  `$${opportunity.expectedProfit.toFixed(2)}`,
-          latency: `${Date.now() - startTime}ms`,
+          txHash:    tx.hash,
+          gasUsed:   receipt.gasUsed.toString(),
+          pair:      `${opportunity.tokenASymbol}/${opportunity.tokenBSymbol}`,
+          buyDex:    opportunity.buyDex,
+          sellDex:   opportunity.sellDex,
+          profit:    `$${opportunity.expectedProfit.toFixed(2)}`,
+          latency:   `${Date.now() - startTime}ms`,
         });
 
-        return { success: true, txHash: result.hash, profit: opportunity.expectedProfit, latencyMs: Date.now() - startTime };
+        this.emit('arbitrageExecuted', { opportunity, txHash: tx.hash, profit: opportunity.expectedProfit });
+        return { success: true, txHash: tx.hash, profit: opportunity.expectedProfit, latencyMs: Date.now() - startTime };
+
       } else {
         this.circuitBreaker.recordFailure(chainId);
-        this.metrics.recordFailure(result.error || 'Unknown');
-        return { success: false, latencyMs: Date.now() - startTime, failureReason: result.error };
+        this.metrics.recordFailure('Transaction reverted');
+        return { success: false, latencyMs: Date.now() - startTime, failureReason: 'Transaction reverted' };
       }
 
     } catch (err: any) {
       this.circuitBreaker.recordFailure(chainId);
-      this.metrics.recordFailure(err.message || 'Unknown');
+
+      const reason = err.reason || err.data?.message || err.message || 'Unknown error';
+      this.metrics.recordFailure(reason);
+      this.gasOptimizer.recordFailure(opportunity.id, reason);
 
       logger.error('💥 Execution failed', {
-        id: opportunity.id, error: err.message, chainId,
+        id:       opportunity.id,
+        pair:     `${opportunity.tokenASymbol}/${opportunity.tokenBSymbol}`,
+        error:    reason,
+        chainId,
         contract: this.contractAddresses.get(chainId),
       });
 
-      return { success: false, latencyMs: Date.now() - startTime, failureReason: err.reason || err.message };
+      return { success: false, latencyMs: Date.now() - startTime, failureReason: reason };
     }
   }
 
@@ -264,11 +313,11 @@ export class EnterpriseArbitrageExecutor extends EventEmitter {
   async isAuthorized(chainId: number): Promise<boolean> {
     try {
       const c = this.contracts.get(chainId);
-      return c ? await c.isAuthorizedExecutor(this.wallet.address) : false;
+      return c ? await (c as any).isAuthorizedExecutor(this.wallet.address) : false;
     } catch { return false; }
   }
 
-  getMetrics() { return this.metrics.getMetrics(); }
+  getMetrics()              { return this.metrics.getMetrics(); }
   getCircuitBreakerStatus() { return this.circuitBreaker.getStatus(); }
 }
 

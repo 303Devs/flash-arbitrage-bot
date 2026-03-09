@@ -1,11 +1,40 @@
+# Environment
 .env
-node_modules
-.DS_Store
-coverage
-logs
-dist
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+
+# Logs
+logs/
 *.log
-.pnpm-debug.log*
-.vscode
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temp
 *.tmp
-*.DS_Store
+*.temp

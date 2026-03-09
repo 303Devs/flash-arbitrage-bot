@@ -1,17 +1,14 @@
 {
-  "name": "mev-bot-ultimate",
+  "name": "flash-arbitrage-bot",
   "version": "1.0.0",
-  "description": "Ultimate MEV extraction system - Direct node architecture for $10k+ daily profits",
-  "main": "dist/src/main.js",
+  "description": "Progressive flash loan arbitrage bot - Phase 1: cross-DEX arbitrage on Arbitrum, Polygon, Base",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "build": "tsc",
-    "start": "node dist/src/main.js",
+    "dev": "cd phases/phase1-arbitrage && pnpm dev",
     "test": "vitest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "clean": "rm -rf dist coverage artifacts cache",
+    "clean": "rm -rf artifacts cache",
     "compile": "hardhat compile",
     "deploy:arbitrum": "hardhat run scripts/deploy.cjs --network arbitrum",
     "deploy:polygon": "hardhat run scripts/deploy.cjs --network polygon",
@@ -33,12 +30,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0",
-    "chalk": "^5.4.1",
-    "dotenv": "^17.2.0",
-    "ethers": "^6.15.0",
-    "viem": "^2.33.0",
-    "ws": "^8.18.0"
+    "@openzeppelin/contracts": "^5.4.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.0.9",

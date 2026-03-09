@@ -6,6 +6,51 @@
 import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 
+// Fallback token prices in USD (used when on-chain query fails)
+const FALLBACK_PRICES: Record<string, number> = {
+  ethereum: 2500, weth: 2500,
+  bitcoin:  65000, wbtc: 65000,
+  usdc: 1, usdt: 1, dai: 1,
+  matic: 0.50, wmatic: 0.50,
+  arb: 1.0, link: 15, bal: 3, crv: 0.5,
+};
+
+// Uniswap V3 quoter addresses per chain (used for live ETH price)
+const V3_QUOTERS: Record<number, { quoter: string; weth: string; usdc: string }> = {
+  42161: {
+    quoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6',
+    weth:   '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+    usdc:   '0xA0b86a33E6425573c19B72A2D65b01eE80d60d53',
+  },
+  137: {
+    quoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6',
+    weth:   '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
+    usdc:   '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+  },
+  8453: {
+    quoter: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a',
+    weth:   '0x4200000000000000000000000000000000000006',
+    usdc:   '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  },
+};
+
+const QUOTER_ABI = [
+  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)',
+];
+
+async function fetchETHPriceOnChain(provider: ethers.Provider, chainId: number): Promise<number> {
+  const cfg = V3_QUOTERS[chainId];
+  if (!cfg) return FALLBACK_PRICES.ethereum;
+
+  const quoter   = new ethers.Contract(cfg.quoter, QUOTER_ABI, provider);
+  const amountIn = ethers.parseEther('1'); // 1 ETH
+  const amountOut = await quoter.quoteExactInputSingle.staticCall(
+    cfg.weth, cfg.usdc, 500, amountIn, 0n
+  );
+  // amountOut is USDC with 6 decimals
+  return Number(amountOut) / 1e6;
+}
+
 // Redis is optional - gracefully degrade if not available
 let Redis: any = null;
 try {
@@ -21,14 +66,36 @@ try {
 export interface ArbitrageOpportunity {
   id: string;
   chainId: number;
-  tokenA: string;   // address
-  tokenB: string;   // address
-  amountIn: string; // token amount (raw)
-  expectedProfit: number; // USD
-  buyDex: string;
-  sellDex: string;
-  buyPrice: number;
-  sellPrice: number;
+  // Token addresses
+  tokenA: string;
+  tokenB: string;
+  tokenASymbol: string;
+  tokenBSymbol: string;
+  tokenADecimals: number;
+  tokenBDecimals: number;
+  // Amounts
+  amountIn: string;      // tokenA amount in native units (as string for BigInt safety)
+  minProfitWei: string;  // minimum profit in tokenA native units
+  // Profit
+  expectedProfit: number;  // net profit in USD
+  grossProfitUSD: number;
+  gasCostUSD: number;
+  // DEX routing
+  buyDex:        string;  // DEX id to buy on (e.g. 'uniswap-v3')
+  sellDex:       string;  // DEX id to sell on
+  buyDexType:    'uniswap-v3' | 'uniswap-v2' | 'balancer' | 'camelot' | 'aerodrome' | 'curve' | 'custom';
+  sellDexType:   'uniswap-v3' | 'uniswap-v2' | 'balancer' | 'camelot' | 'aerodrome' | 'curve' | 'custom';
+  buyDexRouter:  string;
+  sellDexRouter: string;
+  buyFee:        number;  // fee tier (V3: 500/3000/10000, V2: 3000)
+  sellFee:       number;
+  buyDexFactory?:  string;  // V2/custom: factory address (for calldata building)
+  sellDexFactory?: string;
+  // Expected output from buy leg (used to build sell-side calldata)
+  buyAmountOut: string; // estimated tokenB received from buy DEX (native units, as string)
+  // Prices (for logging/confidence)
+  buyPrice:  number;  // tokenB per tokenA on buy DEX
+  sellPrice: number;  // tokenA per tokenB on sell DEX
   gasLimit?: number;
   timestamp: number;
 }
@@ -67,10 +134,10 @@ export class ProfitCalculatorService {
     const effectiveGasPrice = baseFee + (feeData.maxPriorityFeePerGas ?? 0n);
 
     const gasCostWei = gasEstimate * effectiveGasPrice;
-    const ethPrice   = await this.getPrice('ethereum');
+    const ethPrice   = await this.getPrice('ethereum', provider, opportunity.chainId);
     const gasCostUSD = parseFloat(ethers.formatEther(gasCostWei)) * ethPrice;
 
-    const tokenPrice   = await this.getPrice(tokenInfo.symbol.toLowerCase());
+    const tokenPrice     = await this.getPrice(tokenInfo.symbol.toLowerCase(), provider, opportunity.chainId);
     const grossProfitUSD = opportunity.expectedProfit * tokenPrice;
     const netProfitUSD   = grossProfitUSD - gasCostUSD;
 
@@ -92,12 +159,30 @@ export class ProfitCalculatorService {
     return Math.min(1, ratio * 0.4 + decay * 0.3 + spread * 0.3);
   }
 
-  private async getPrice(symbol: string): Promise<number> {
-    const cached = this.priceCache.get(symbol);
+  /**
+   * Get token price in USD via on-chain Uniswap V3 quote.
+   * Falls back to hardcoded estimates if RPC call fails.
+   *
+   * We query 1 WETH → USDC on Uniswap V3 0.05% pool to get live ETH price.
+   * Other token prices use fixed fallbacks (good enough for gas cost estimation).
+   */
+  async getPrice(symbol: string, provider?: ethers.Provider, chainId?: number): Promise<number> {
+    const key    = `${chainId ?? 0}:${symbol}`;
+    const cached = this.priceCache.get(key);
     if (cached && Date.now() - cached.ts < this.CACHE_TTL) return cached.price;
-    // TODO: Implement multi-source price fetching (CoinGecko, Chainlink, etc.)
-    const price = 1; // placeholder
-    this.priceCache.set(symbol, { price, ts: Date.now() });
+
+    let price = FALLBACK_PRICES[symbol.toLowerCase()] ?? 1;
+
+    // For ETH price: query Uniswap V3 quoter on-chain
+    if ((symbol === 'ethereum' || symbol === 'weth') && provider && chainId) {
+      try {
+        price = await fetchETHPriceOnChain(provider, chainId);
+      } catch {
+        // Use fallback if RPC call fails
+      }
+    }
+
+    this.priceCache.set(key, { price, ts: Date.now() });
     return price;
   }
 }
