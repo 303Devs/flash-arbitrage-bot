@@ -195,18 +195,51 @@ Month 12 (Phase 6): $525,000-3,240,000 profit → MEV empire
 
 ## 🎮 **QUICK START COMMANDS**
 
+## 🧾 **CURRENT PROJECT STATUS**
+
+This repository is currently centered on **Phase 1 cross-DEX arbitrage**:
+
+- Root Hardhat project: `shared/contracts/implementations/ZeroCapitalArbitrage.sol`
+- Phase 1 TypeScript bot: `phases/phase1-arbitrage/`
+- Deployment script: `scripts/deploy.cjs`
+- DEX whitelist helper: `scripts/whitelist-dexs.ts`
+
+### **Local Verification**
+
+These commands should pass without real secrets:
+
+```bash
+pnpm compile
+pnpm lint
+pnpm test -- --run
+
+cd phases/phase1-arbitrage
+pnpm build
+pnpm test -- --run
+```
+
+`pnpm dev` requires real runtime secrets and deployed contract addresses. Without a local `.env`, the bot starts and exits because `PRIVATE_KEY` is intentionally unset.
+
+### **Environment Files**
+
+- Root Hardhat/deployment template: `.env.example`
+- Phase 1 bot runtime template: `phases/phase1-arbitrage/.env.example`
+- Real `.env` files must stay local, gitignored, and backed by 1Password.
+
+### **External Services**
+
+- RPC providers: QuickNode and/or Alchemy HTTP/WSS endpoints for Arbitrum, Polygon, and Base
+- Flash loan providers: Balancer and Aave pool contracts
+- DEX/router integrations: Uniswap, SushiSwap, Camelot, QuickSwap, Aerodrome, Curve, Balancer
+- Block explorer verification: Etherscan, Polygonscan, Basescan
+- Optional nonce/coordination store: Redis
+- Optional notifications: Discord webhook, Telegram bot
+
 ```bash
 # Phase 1: Arbitrage
 cd phases/phase1-arbitrage/
-npm install && npm run dev
-
-# Phase 2: Liquidations  
-cd phases/phase2-liquidations/
-npm install && npm run dev
-
-# Phase 3: Sandwich
-cd phases/phase3-sandwich/
-npm install && npm run dev
+pnpm install
+pnpm dev
 ```
 
 ---

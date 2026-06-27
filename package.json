@@ -30,9 +30,12 @@
   "license": "MIT",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0"
+    "@openzeppelin/contracts": "^5.4.0",
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
+    "@eslint/js": "9.32.0",
+    "@eslint/json": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.9",
     "@nomicfoundation/hardhat-verify": "^2.0.15",
     "@types/node": "^24.0.15",
@@ -40,9 +43,11 @@
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
     "eslint": "^9.31.0",
+    "globals": "^17.7.0",
     "hardhat": "^2.24.3",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.62.0",
     "vitest": "^3.2.4"
   }
 }

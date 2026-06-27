@@ -22,28 +22,6 @@ export interface ExecutionResult {
   error?: string;
 }
 
-const CONTRACT_ABI = [
-  `function executeArbitrage(
-    tuple(
-      uint8 provider,
-      address tokenIn,
-      address tokenOut,
-      uint256 flashAmount,
-      uint256 minProfit,
-      address dexA,
-      address dexB,
-      bytes swapDataA,
-      bytes swapDataB,
-      address executor,
-      uint256 preFlashBalance
-    ) params
-  ) external`,
-  'function isAuthorizedExecutor(address) external view returns (bool)',
-  'function getTokenBalance(address) external view returns (uint256)',
-  'function getAvailableProfit(address) external view returns (uint256)',
-  'event ArbitrageExecuted(address indexed tokenIn, address indexed tokenOut, uint256 flashAmount, uint256 profit, uint8 provider, address indexed executor)',
-];
-
 /**
  * Validate an opportunity before execution
  * Rejects stale, unprofitable, or suspiciously large opportunities
@@ -105,7 +83,7 @@ export async function executeArbitrageFixed(
     swapDataB?: string;      // hex-encoded calldata for DEX B swap
   },
   contract: ethers.Contract,
-  provider: ethers.Provider
+  _provider: ethers.Provider
 ): Promise<ExecutionResult> {
   try {
     // Validate before execution
